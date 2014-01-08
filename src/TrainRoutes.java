@@ -1,10 +1,17 @@
 import java.io.File;
 import java.io.FileNotFoundException;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.io.PrintWriter;
+import java.net.ServerSocket;
+import java.net.Socket;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Scanner;
+
 
 
 public class TrainRoutes {
@@ -13,36 +20,81 @@ public class TrainRoutes {
 	
 	public static void main (String[] args){
 		parseInput();
-		String[] nodeList = {"A", "B", "C"};
-		getDistance(nodeList);
-		String[] nodeList2 = {"A", "D"};
-		getDistance(nodeList2);
-		String[] nodeList3 = {"A", "D", "C"};
-		getDistance(nodeList3);
-		String[] nodeList4 = {"A", "E", "B", "C", "D"};
-		getDistance(nodeList4);
-		String[] nodeList5 = {"A", "E", "D"};
-		getDistance(nodeList5);
-		MyCondition exactStops = new MyCondition(){
-			public boolean isTrue(int value){
-				if(value == 1)
-					return true;
-				return false;
-			}
-		};
+		remote();
 		
-		MyCondition maximumStops = new MyCondition(){
-			public boolean isTrue(int value){
-				if(value > 0)
-					return true;
-				return false;
+	}
+	
+	public static void remote(){
+		try{
+			final int portNumber = 5072;
+			System.out.println("Creating server socket on port " + portNumber);
+			ServerSocket serverSocket = new ServerSocket(portNumber);
+			while (true) {
+				Socket socket = serverSocket.accept();
+				OutputStream os = socket.getOutputStream();
+				PrintWriter pw = new PrintWriter(os, true);
+				Scanner sc = new Scanner(new InputStreamReader(socket.getInputStream()));
+				
+				pw.println("Insert command:");
+				String cmd = sc.next();
+				
+				if(cmd.equals("ExactStops")){
+					String source = sc.next();
+					String dest = sc.next();
+					int stops = sc.nextInt();
+					MyCondition exactStops = new MyCondition(){
+						public boolean isTrue(int value){
+							if(value == 1)
+								return true;
+							return false;
+						}
+					};
+					pw.println(getNumberOfRoutes(source, dest, stops, exactStops));
+					
+				} else if(cmd.equals("MaximumStops")) {
+					String source = sc.next();
+					String dest = sc.next();
+					int stops = sc.nextInt();
+					MyCondition maximumStops = new MyCondition(){
+						public boolean isTrue(int value){
+							if(value > 0)
+								return true;
+							return false;
+						}
+					};
+					pw.println(getNumberOfRoutes(source, dest, stops, maximumStops));
+				} else if(cmd.equals("MaximumDistance")){
+					String source = sc.next();
+					String dest = sc.next();
+					int distance = sc.nextInt();
+					pw.println(getNumberOfRoutesByDistance(source, dest, distance));
+				} else if(cmd.equals("ShortestPath")) {
+					String source = sc.next();
+					String dest = sc.next();
+					pw.println(djikstra(source, dest, 0));
+				} else if(cmd.equals("GetDistance")){
+					
+					List<String> nodeList = new ArrayList<String>();
+					int len = sc.nextInt();
+					for(int i=0; i<len; i++){
+						nodeList.add(sc.next());
+					}
+					
+					int res = getDistance(nodeList);
+					if(res > 0)
+						pw.println(res);
+					else
+						pw.println("NO SUCH ROUTE");
+				}
+				
+				pw.close();
+				socket.close();
+	
+				//System.out.println("Just said hello to:" + str);
 			}
-		};
-		System.out.println(getNumberOfRoutes("C", "C", 3, maximumStops));
-		System.out.println(getNumberOfRoutes("A", "C", 4, exactStops));
-		System.out.println(djikstra("A", "C", 0));
-		System.out.println(djikstra("B", "B", 0));
-		System.out.println(getNumberOfRoutesByDistance("C", "C", 30));
+		} catch (Exception e) {
+			System.out.println(e.toString());
+		}
 	}
 	
 	private static void parseInput() {
@@ -66,14 +118,14 @@ public class TrainRoutes {
 		}
 	}
 	
-	private static void getDistance(String[] nodeList){
-		String curr = nodeList[0];
+	private static int getDistance(List<String> nodeList){
+		String curr = nodeList.get(0);
 		Node  currNode = nodes.get(curr);
 		String next;
 		int distance = 0;
 		
-		for(int i=1; i<nodeList.length; i++) {
-			next = nodeList[i];
+		for(int i=1; i<nodeList.size(); i++) {
+			next = nodeList.get(i);
 			boolean flag = false;
 			for(Arc arc : currNode.getArcs()){
 				if(arc.getAdj().equals(next)){
@@ -84,16 +136,16 @@ public class TrainRoutes {
 			}
 			
 			if(flag == false){
-				System.out.println("NO SUCH ROUTE");
-				return;
+				return -1;
 			}
 			curr = next;
+			System.out.println(distance);
 			currNode = nodes.get(curr);
 		}
 		
-		System.out.println(distance);
-		return;
+		return distance;
 	}
+	
 	
 	private static int getNumberOfRoutes(String source, String dest, int stops,  MyCondition c){
 		return nodes.get(source).getNumberOfRoutes(dest, stops, c);
